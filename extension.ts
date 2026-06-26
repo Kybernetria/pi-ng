@@ -70,10 +70,11 @@ export interface PiNgExtensionOptions extends CreatePiNgHandlersOptions {
 }
 
 function ensureProtocolMinimal(): void {
-  try { _require.resolve("@kyvernitria/pi-protocol-minimal"); return; } catch {}
-
   const targetDir = join(__dirname, "node_modules", "@kyvernitria");
   const target = join(targetDir, "pi-protocol-minimal");
+
+  // If the symlink or install already exists, we're done.
+  if (existsSync(target)) return;
 
   const localRepo = join(homedir(), "Applications", "pi", "pi-protocol", "packages", "pi-protocol-minimal");
   if (existsSync(localRepo)) {
