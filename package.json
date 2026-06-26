@@ -1,0 +1,43 @@
+{
+  "name": "pi-ng",
+  "version": "0.0.0-prototype",
+  "type": "module",
+  "private": true,
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi-protocol"
+  ],
+  "exports": {
+    ".": "./extension.ts",
+    "./extension": "./extension.ts",
+    "./signal-rest-client": "./signal-rest-client.ts",
+    "./routing-state": "./routing-state.ts",
+    "./handlers": "./handlers.ts",
+    "./daemon": "./daemon.ts"
+  },
+  "pi": {
+    "extensions": [
+      "./extension.ts"
+    ]
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx scripts/test-pi-ng.ts",
+    "daemon": "tsx scripts/daemon.ts",
+    "install:daemon-service": "tsx scripts/install-user-service.ts",
+    "debug:receive": "tsx scripts/debug-receive.ts"
+  },
+  "dependencies": {
+    "@kyvernitria/pi-protocol-minimal": "file:../pi-protocol/packages/pi-protocol-minimal"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.75.4",
+    "@types/node": "^26.0.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.8.3"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}
