@@ -1,32 +1,10 @@
-import { createRequire } from "node:module";
-import { existsSync, mkdirSync, readFileSync, symlinkSync } from "node:fs";
+import { existsSync, mkdirSync, symlinkSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { createAgentSession, DefaultResourceLoader, getAgentDir, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-// Local protocol manifest type — avoids import from pi-protocol-minimal
-// which isn't guaranteed to be resolvable at static-analysis time.
-interface ProvideSpec {
-  name: string;
-  description: string;
-  inputSchema: Record<string, unknown>;
-  outputSchema: Record<string, unknown>;
-  execution: { type: string; handler: string };
-  effects?: string[];
-}
-interface PiProtocolManifest {
-  protocolVersion: string;
-  nodeId: string;
-  packageId: string;
-  version: string;
-  purpose: string;
-  provides: ProvideSpec[];
-}
+import { ensureProtocolFabric, registerProtocolManifest, type PiProtocolManifest } from "@kyvernitria/pi-protocol-minimal";
 import { createPiNgDaemon, type AgentSessionRouter, type PiNgDaemon } from "./daemon.ts";
 import { createPiNgHandlers, type CreatePiNgHandlersOptions } from "./handlers.ts";
-
-const _require = createRequire(import.meta.url);
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const manifest: PiProtocolManifest = {
   protocolVersion: "0.2.0",
@@ -69,28 +47,7 @@ export interface PiNgExtensionOptions extends CreatePiNgHandlersOptions {
   enableDaemon?: boolean;
 }
 
-function ensureProtocolMinimal(): void {
-  const targetDir = join(__dirname, "node_modules", "@kyvernitria");
-  const target = join(targetDir, "pi-protocol-minimal");
-
-  // If the symlink or install already exists, we're done.
-  if (existsSync(target)) return;
-
-  const localRepo = join(homedir(), "Applications", "pi", "pi-protocol", "packages", "pi-protocol-minimal");
-  if (existsSync(localRepo)) {
-    mkdirSync(targetDir, { recursive: true });
-    symlinkSync(localRepo, target, "dir");
-    return;
-  }
-
-  const { execSync } = _require("node:child_process");
-  mkdirSync(targetDir, { recursive: true });
-  execSync("npm install @kyvernitria/pi-protocol-minimal@latest", { cwd: __dirname, stdio: "pipe" });
-}
-
 export default function piNgExtension(pi: ExtensionAPI, options: PiNgExtensionOptions = {}): void {
-  ensureProtocolMinimal();
-  const { ensureProtocolFabric, registerProtocolManifest } = _require("@kyvernitria/pi-protocol-minimal");
   const fabric = ensureProtocolFabric();
 
   const agentRouter = options.agentRouter ?? createPiChatAgentRouter(pi);
@@ -123,10 +80,6 @@ export default function piNgExtension(pi: ExtensionAPI, options: PiNgExtensionOp
     agentRouter.setPiSessionOpen?.(false);
   });
 
-  // Extensions can be loaded/reloaded after the active session has already
-  // started. In that case no new session_start event may arrive, so start the
-  // Signal polling daemon on the next tick as well. The guard inside
-  // startDaemon() prevents double starts when session_start also fires.
   setTimeout(() => startDaemon(), 0);
 }
 
@@ -148,16 +101,13 @@ function createPiChatAgentRouter(pi: ExtensionAPI): AgentSessionRouter {
   let piSessionOpen = true;
 
   return {
-    setPiSessionOpen(open) {
-      piSessionOpen = open;
-    },
+    setPiSessionOpen(open) { piSessionOpen = open; },
     async start(message, sessionId) {
       if (piSessionOpen) {
         sessions.set(sessionId, "pi");
         pi.sendUserMessage(message, { deliverAs: "followUp" });
         return { pending: true };
       }
-
       sessions.set(sessionId, "sdk");
       return sdkRouter.start(message, sessionId);
     },
@@ -165,14 +115,11 @@ function createPiChatAgentRouter(pi: ExtensionAPI): AgentSessionRouter {
       const target = sessions.get(sessionId);
       if (!target) return { routed: false, reason: "unknown_session" };
       if (target === "sdk") return sdkRouter.route(message, sessionId);
-
       if (!piSessionOpen) return { routed: false, reason: "pi_session_closed" };
       pi.sendUserMessage(message, { deliverAs: "followUp" });
       return { routed: true, pending: true };
     },
-    dispose() {
-      sdkRouter.dispose();
-    },
+    dispose() { sdkRouter.dispose(); },
   };
 }
 
@@ -192,10 +139,7 @@ class SdkAgentSessionRouter implements AgentSessionRouter {
     return { response: await this.promptAndCollect(message, true), pending: true, routed: true };
   }
 
-  dispose(): void {
-    this.session?.dispose();
-    this.session = undefined;
-  }
+  dispose(): void { this.session?.dispose(); this.session = undefined; }
 
   private async promptAndCollect(message: string, followUp = false): Promise<string> {
     if (!this.session) throw new Error("SDK session is not initialized.");
@@ -210,8 +154,7 @@ class SdkAgentSessionRouter implements AgentSessionRouter {
       else await this.session.prompt(message);
       return response.trim() || "Pi SDK session completed without a text response.";
     } catch (error) {
-      const text = error instanceof Error ? error.message : String(error);
-      return `Pi SDK session failed: ${text}`;
+      return `Pi SDK session failed: ${error instanceof Error ? error.message : String(error)}`;
     } finally {
       unsubscribe();
     }
@@ -232,13 +175,8 @@ function parseArgsOrPostUsage(pi: ExtensionAPI, args: string, usage: string): st
 }
 
 function postCommandResult(pi: ExtensionAPI, content: string): void {
-  pi.sendMessage({
-    customType: "pi-ng.command_result",
-    content,
-    display: true,
-  });
+  pi.sendMessage({ customType: "pi-ng.command_result", content, display: true });
 }
-
 
 function parseBoolean(value: string | undefined, defaultValue: boolean): boolean {
   if (value === undefined) return defaultValue;
