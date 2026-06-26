@@ -4,7 +4,24 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createAgentSession, DefaultResourceLoader, getAgentDir, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { PiProtocolManifest } from "@kyvernitria/pi-protocol-minimal";
+// Local protocol manifest type — avoids import from pi-protocol-minimal
+// which isn't guaranteed to be resolvable at static-analysis time.
+interface ProvideSpec {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  outputSchema: Record<string, unknown>;
+  execution: { type: string; handler: string };
+  effects?: string[];
+}
+interface PiProtocolManifest {
+  protocolVersion: string;
+  nodeId: string;
+  packageId: string;
+  version: string;
+  purpose: string;
+  provides: ProvideSpec[];
+}
 import { createPiNgDaemon, type AgentSessionRouter, type PiNgDaemon } from "./daemon.ts";
 import { createPiNgHandlers, type CreatePiNgHandlersOptions } from "./handlers.ts";
 
