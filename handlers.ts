@@ -1,4 +1,5 @@
-import type { ProtocolHandler } from "@kyvernitria/pi-protocol-minimal";
+type ProtocolHandler = (input: unknown) => unknown | Promise<unknown>;
+
 import { createSignalRestClient, type SignalRestClient } from "./signal-rest-client.ts";
 import { getSharedRoutingState, type RoutingState } from "./routing-state.ts";
 
